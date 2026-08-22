@@ -19,7 +19,16 @@ variables: &base_vars
   GIT_FETCH_EXTRA_FLAGS: --tags
   GIT_SUBMODULE_STRATEGY: normal
 
+# Every runner on this instance picks up untagged jobs, and some of them are
+# arm64. The test jobs run binaries produced by the build jobs, and docker:push
+# publishes the image produced by docker:build, so all jobs in a pipeline have
+# to land on the same architecture.
+.amd64_runner:
+  tags:
+    - amd64
+
 .ubuntu_base:
+  extends: .amd64_runner
   image: "ubuntu:${UBUNTU_TAG}"
   variables:
     <<: *base_vars
@@ -82,6 +91,7 @@ ubuntu2604:test:
 
 # Build Docker image for testing
 docker:build:
+  extends: .amd64_runner
   stage: build
   image:
     name: gcr.io/kaniko-project/executor:debug
@@ -96,6 +106,7 @@ docker:build:
 
 # Push Docker image to registry
 docker:push:
+  extends: .amd64_runner
   stage: publish
   needs: ["docker:build"]
   image:
