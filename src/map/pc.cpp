@@ -43,6 +43,7 @@
 #include "../mmo/cxxstdio_enums.hpp"
 
 #include "../net/timer.hpp"
+#include "telemetry.hpp"
 #include "../net/timestamp-utils.hpp"
 
 #include "../proto2/char-map.hpp"
@@ -3546,6 +3547,7 @@ int pc_damage(dumb_ptr<block_list> src, dumb_ptr<map_session_data> sd,
     {
         //まだ生きているならHP更新 | HP update if you're still alive
         clif_updatestatus(sd, SP::HP);
+        telemetry_log_event(sd, "player_hurt", damage);
 
         sd->canlog_tick = gettick();
 
@@ -3563,6 +3565,7 @@ int pc_damage(dumb_ptr<block_list> src, dumb_ptr<map_session_data> sd,
     }
 
     MAP_LOG_PC(sd, "DEAD%s"_fmt, ""_s);
+    telemetry_log_event(sd, "player_death", damage);
 
     // Character is dead!
 
@@ -5688,6 +5691,9 @@ void pc_calc_sigma(void)
  */
 void do_init_pc(void)
 {
+    telemetry_init();
+    telemetry_start_snapshot_timer();
+
     pc_calc_sigma();
     natural_heal_prev_tick = gettick() + NATURAL_HEAL_INTERVAL;
     Timer(natural_heal_prev_tick,
