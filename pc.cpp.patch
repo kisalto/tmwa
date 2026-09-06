@@ -1,5 +1,5 @@
 diff --git a/src/map/pc.cpp b/src/map/pc.cpp
-index 433b09c..bf133b0 100644
+index 433b09c..1e6ff66 100644
 --- a/src/map/pc.cpp
 +++ b/src/map/pc.cpp
 @@ -43,6 +43,7 @@
@@ -10,7 +10,25 @@ index 433b09c..bf133b0 100644
  #include "../net/timestamp-utils.hpp"
  
  #include "../proto2/char-map.hpp"
-@@ -3546,6 +3547,7 @@ int pc_damage(dumb_ptr<block_list> src, dumb_ptr<map_session_data> sd,
+@@ -2781,6 +2782,8 @@ int pc_walktoxy(dumb_ptr<map_session_data> sd, int x, int y)
+ 
+     nullpo_retz(sd);
+ 
++    telemetry_log_move_cmd(sd, x, y);
++
+     sd->to_x = x;
+     sd->to_y = y;
+ 
+@@ -3026,6 +3029,8 @@ int pc_attack(dumb_ptr<map_session_data> sd, BlockId target_id, int type)
+     sd->attacktarget = target_id;
+     sd->state.attack_continue = type;
+ 
++    telemetry_log_attack(sd, target_id._value, type != 0);
++
+     interval_t d = sd->attackabletime - gettick();
+     if (d > interval_t::zero() && d < 2_s)
+     {                           //攻撃delay中 | Attack delaying
+@@ -3546,6 +3551,7 @@ int pc_damage(dumb_ptr<block_list> src, dumb_ptr<map_session_data> sd,
      {
          //まだ生きているならHP更新 | HP update if you're still alive
          clif_updatestatus(sd, SP::HP);
@@ -18,7 +36,7 @@ index 433b09c..bf133b0 100644
  
          sd->canlog_tick = gettick();
  
-@@ -3563,6 +3565,7 @@ int pc_damage(dumb_ptr<block_list> src, dumb_ptr<map_session_data> sd,
+@@ -3563,6 +3569,7 @@ int pc_damage(dumb_ptr<block_list> src, dumb_ptr<map_session_data> sd,
      }
  
      MAP_LOG_PC(sd, "DEAD%s"_fmt, ""_s);
@@ -26,7 +44,7 @@ index 433b09c..bf133b0 100644
  
      // Character is dead!
  
-@@ -5688,6 +5691,9 @@ void pc_calc_sigma(void)
+@@ -5688,6 +5695,9 @@ void pc_calc_sigma(void)
   */
  void do_init_pc(void)
  {

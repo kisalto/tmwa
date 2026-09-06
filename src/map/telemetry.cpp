@@ -1,18 +1,16 @@
 // telemetry.cpp
 // ---------------------------------------------------------------------------
-// Ver telemetry.hpp para o design geral. Resumo: socket UDP comum (POSIX
-// puro, nao usa a infra de rede do proprio tmwa), aberto uma vez, sempre
-// nao-bloqueante. Cada evento/snapshot vira UMA linha JSON por datagrama --
-// sem esperar resposta, sem fila, sem retry (isso fica todo do lado da
-// "bridge" em Python, que escuta essa porta e reenvia por gRPC).
+// Ver telemetry.hpp para o design geral. v2: adiciona telemetry_log_move_cmd
+// e telemetry_log_attack (acoes do jogador), alem dos eventos de estado que
+// ja existiam (dano/morte/snapshot).
 //
-// AVISO HONESTO: eu li pc.cpp/map.cpp/map.hpp/timer.hpp/timer.t.hpp/ids.hpp/
-// wrap.hpp diretamente pra confirmar os campos e assinaturas usados aqui,
-// mas NAO consegui compilar isto contra o build de verdade do tmwa (nao
-// tenho o toolchain/dependencias completas no sandbox). Ao contrario do
-// TelemetryService em Python (que rodei de ponta a ponta com Postgres real),
-// este arquivo e o que tem MAIS chance de precisar de um ajuste pequeno na
-// primeira compilada -- me manda o erro que eu corrijo rapido.
+// AVISO HONESTO (repetido da v1, ainda vale): li pc.cpp/clif.cpp/map.hpp/
+// timer.hpp/timer.t.hpp/ids.hpp/wrap.hpp diretamente pra confirmar os campos
+// e assinaturas usados aqui, mas NAO consegui compilar isto contra o build
+// de verdade do tmwa. Ao contrario do TelemetryService em Python (rodado
+// ponta a ponta com Postgres real), este arquivo e o que tem MAIS chance de
+// precisar de ajuste na primeira compilada -- me manda o erro que eu
+// corrijo rapido.
 
 #include "telemetry.hpp"
 
@@ -89,17 +87,21 @@ static void telemetry_send_line(const std::string& line)
 
 // serializa os campos de um player numa linha JSON. Fica tudo nesta UNICA
 // funcao de proposito -- se algum campo/tipo mudar de nome no resto do
-// codigo, so precisa ajustar aqui.
-static std::string player_to_json(dumb_ptr<map_session_data> sd, const char *event_type, int extra_int)
+// codigo, so precisa ajustar aqui. dest_x/dest_y/target_id/continuous so
+// fazem sentido em player_move_cmd/player_attack -- ficam com valor
+// sentinela (-1 / 0 / false) nos demais event_type.
+static std::string player_to_json(dumb_ptr<map_session_data> sd, const char *event_type, int extra_int,
+                                   int dest_x = -1, int dest_y = -1,
+                                   uint32_t target_id = 0, bool continuous = false)
 {
     char buf[512];
     // OBS: sd->status_key.char_id e um CharId (strong-typedef sobre
     // uint32_t via Wrapped<uint32_t>); ._value acessa o uint32_t cru.
-    // Confirmar se compila assim -- se o campo for privado na sua versao,
-    // troca por um getter equivalente que exista em ids.hpp.
+    // Mesma observacao vale pra BlockId (target_id).
     std::snprintf(buf, sizeof(buf),
         "{\"event\":\"%s\",\"char_id\":%u,\"x\":%d,\"y\":%d,"
-        "\"hp\":%d,\"max_hp\":%d,\"dead\":%s,\"extra\":%d}",
+        "\"hp\":%d,\"max_hp\":%d,\"dead\":%s,\"extra\":%d,"
+        "\"dest_x\":%d,\"dest_y\":%d,\"target_id\":%u,\"continuous\":%s}",
         event_type,
         static_cast<unsigned>(sd->status_key.char_id._value),
         static_cast<int>(sd->bl_x),
@@ -107,7 +109,10 @@ static std::string player_to_json(dumb_ptr<map_session_data> sd, const char *eve
         static_cast<int>(sd->status.hp),
         static_cast<int>(sd->status.max_hp),
         pc_isdead(sd) ? "true" : "false",
-        extra_int);
+        extra_int,
+        dest_x, dest_y,
+        static_cast<unsigned>(target_id),
+        continuous ? "true" : "false");
     return std::string(buf);
 }
 
@@ -116,6 +121,20 @@ void telemetry_log_event(dumb_ptr<map_session_data> sd, const char *event_type, 
     if (!sd)
         return;
     telemetry_send_line(player_to_json(sd, event_type, extra_int));
+}
+
+void telemetry_log_move_cmd(dumb_ptr<map_session_data> sd, int dest_x, int dest_y)
+{
+    if (!sd)
+        return;
+    telemetry_send_line(player_to_json(sd, "player_move_cmd", 0, dest_x, dest_y));
+}
+
+void telemetry_log_attack(dumb_ptr<map_session_data> sd, uint32_t target_id, bool continuous)
+{
+    if (!sd)
+        return;
+    telemetry_send_line(player_to_json(sd, "player_attack", 0, -1, -1, target_id, continuous));
 }
 
 static void telemetry_snapshot_tick(TimerData *, tick_t)
