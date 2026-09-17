@@ -17,6 +17,7 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -27,6 +28,8 @@
 #include "pc.hpp"
 
 namespace tmwa
+{
+namespace map
 {
 
 // ajuste aqui se a bridge Python escutar em outro host/porta
@@ -43,7 +46,7 @@ void telemetry_init()
     telemetry_fd = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (telemetry_fd < 0)
     {
-        PRINTF("[telemetry] falha ao criar socket UDP: %s\n"_fmt, strerror(errno));
+        std::printf("[telemetry] falha ao criar socket UDP: %s\n", strerror(errno));
         return;
     }
 
@@ -57,7 +60,7 @@ void telemetry_init()
     addr.sin_port = htons(TELEMETRY_PORT);
     if (inet_pton(AF_INET, TELEMETRY_HOST, &addr.sin_addr) != 1)
     {
-        PRINTF("[telemetry] endereco invalido: %s\n"_fmt, TELEMETRY_HOST);
+        std::printf("[telemetry] endereco invalido: %s\n", TELEMETRY_HOST);
         close(telemetry_fd);
         telemetry_fd = -1;
         return;
@@ -67,13 +70,13 @@ void telemetry_init()
     // continua sem handshake, sem estado de conexao de verdade.
     if (::connect(telemetry_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0)
     {
-        PRINTF("[telemetry] falha ao conectar socket UDP: %s\n"_fmt, strerror(errno));
+        std::printf("[telemetry] falha ao conectar socket UDP: %s\n", strerror(errno));
         close(telemetry_fd);
         telemetry_fd = -1;
         return;
     }
 
-    PRINTF("[telemetry] UDP pronto, mandando pra %s:%d\n"_fmt, TELEMETRY_HOST, TELEMETRY_PORT);
+    std::printf("[telemetry] UDP pronto, mandando pra %s:%d\n", TELEMETRY_HOST, TELEMETRY_PORT);
 }
 
 static void telemetry_send_line(const std::string& line)
@@ -155,4 +158,5 @@ void telemetry_start_snapshot_timer()
     Timer(gettick() + SNAPSHOT_INTERVAL, telemetry_snapshot_tick, SNAPSHOT_INTERVAL).detach();
 }
 
+} // namespace map
 } // namespace tmwa

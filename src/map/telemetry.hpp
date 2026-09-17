@@ -21,6 +21,8 @@
 
 namespace tmwa
 {
+namespace map
+{
 
 // chamar uma vez, em do_init_pc() (ou onde preferir no boot do map-server)
 void telemetry_init();
@@ -44,4 +46,5 @@ void telemetry_log_attack(dumb_ptr<map_session_data> sd, uint32_t target_id, boo
 // o timer se re-agenda sozinho, igual ao pc_natural_heal.
 void telemetry_start_snapshot_timer();
 
+} // namespace map
 } // namespace tmwa
